@@ -43,12 +43,22 @@ const FHD_SCRIPT = `
 </script>`;
 
 /**
- * Detect LibreOffice installation on Windows
+ * Detect LibreOffice installation on Windows and Linux
  */
 export async function detectLibreOffice(): Promise<LibreOfficeInfo> {
+  const isLinux = process.platform === 'linux';
+  const isWin = process.platform === 'win32';
+
   const candidates = [
-    'C:\\Program Files\\LibreOffice\\program\\soffice.exe',
-    'C:\\Program Files (x86)\\LibreOffice\\program\\soffice.exe',
+    ...(isWin ? [
+      'C:\\Program Files\\LibreOffice\\program\\soffice.exe',
+      'C:\\Program Files (x86)\\LibreOffice\\program\\soffice.exe',
+    ] : []),
+    ...(isLinux ? [
+      '/usr/bin/soffice',
+      '/usr/lib/libreoffice/program/soffice',
+      '/opt/libreoffice/program/soffice',
+    ] : []),
     process.env['LIBREOFFICE_PATH'] || '',
   ].filter(Boolean);
 
@@ -194,6 +204,38 @@ async function inlineResources(
   fs.writeFileSync(outputPath, $.html(), 'utf-8');
 
   return outputPath;
+}
+
+/**
+ * Process an existing HTML file into a self-contained FHD HTML5 file.
+ * Inlines all local CSS and images, then injects FHD viewport scaling.
+ */
+export async function convertHtmlToHtml5(
+  htmlPath: string,
+  outputDir: string,
+  onProgress: (page: number, total: number, message: string) => void,
+): Promise<ConvertResult> {
+  try {
+    onProgress(10, 100, 'Reading HTML file…');
+    fs.mkdirSync(outputDir, { recursive: true });
+
+    const sourceDir = path.dirname(htmlPath);
+    const baseName = path.basename(htmlPath);
+    const destPath = path.join(outputDir, baseName);
+
+    if (path.resolve(htmlPath) !== path.resolve(destPath)) {
+      fs.copyFileSync(htmlPath, destPath);
+    }
+
+    onProgress(40, 100, 'Inlining resources (images, styles)…');
+    const finalHtmlPath = await inlineResources(destPath, sourceDir, onProgress);
+
+    onProgress(100, 100, 'Done!');
+    return { success: true, outputPath: finalHtmlPath };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { success: false, error: message };
+  }
 }
 
 /**

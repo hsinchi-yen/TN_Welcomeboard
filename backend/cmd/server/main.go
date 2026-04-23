@@ -61,7 +61,7 @@ func main() {
 	hand := handler.NewHandler(svc, h, mediaDir)
 
 	r := gin.Default()
-	r.MaxMultipartMemory = 32 << 20
+	r.MaxMultipartMemory = 32 << 20 // 32 MB in memory; remainder streamed to temp files
 
 	r.Static("/media", mediaDir)
 
@@ -109,8 +109,8 @@ func main() {
 	srv := &http.Server{
 		Addr:         ":" + port,
 		Handler:      r,
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 120 * time.Second, // generous for large uploads
+		ReadTimeout:  600 * time.Second, // 10 min — allows 1 GB uploads on slow links
+		WriteTimeout: 120 * time.Second,
 		IdleTimeout:  120 * time.Second,
 	}
 

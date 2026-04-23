@@ -7,12 +7,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // File dialogs
   openPptxDialog: () => ipcRenderer.invoke('dialog:openPptx'),
+  openHtmlDialog: () => ipcRenderer.invoke('dialog:openHtml'),
   openOutputDirDialog: () => ipcRenderer.invoke('dialog:openOutputDir'),
 
   // Converter
   detectLibreOffice: () => ipcRenderer.invoke('libreoffice:detect'),
   convertPptx: (pptxPath: string, outputDir: string) =>
     ipcRenderer.invoke('convert:pptx', pptxPath, outputDir),
+  convertHtml: (htmlPath: string, outputDir: string) =>
+    ipcRenderer.invoke('convert:html', htmlPath, outputDir),
 
   // Shell
   openInBrowser: (filePath: string) => ipcRenderer.invoke('shell:openBrowser', filePath),

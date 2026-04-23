@@ -8,6 +8,7 @@ import {
   detectLibreOffice,
   convertPptxLibreOffice,
   convertPptxFallback,
+  convertHtmlToHtml5,
 } from './converter';
 
 export function setupIpcHandlers(mainWindow: BrowserWindow): void {
@@ -16,6 +17,16 @@ export function setupIpcHandlers(mainWindow: BrowserWindow): void {
     const result = await dialog.showOpenDialog(mainWindow, {
       title: '選擇 PPTX 檔案',
       filters: [{ name: 'PowerPoint', extensions: ['pptx', 'ppt'] }],
+      properties: ['openFile'],
+    });
+    return result.canceled ? null : result.filePaths[0];
+  });
+
+  // ─── Dialog: Open HTML ───────────────────────────────────────────────────────
+  ipcMain.handle('dialog:openHtml', async () => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: '選擇 HTML 檔案',
+      filters: [{ name: 'HTML Files', extensions: ['html', 'htm'] }],
       properties: ['openFile'],
     });
     return result.canceled ? null : result.filePaths[0];
@@ -48,6 +59,14 @@ export function setupIpcHandlers(mainWindow: BrowserWindow): void {
     } else {
       return await convertPptxFallback(pptxPath, outputDir, sendProgress);
     }
+  });
+
+  // ─── Convert HTML → HTML5 ────────────────────────────────────────────────────
+  ipcMain.handle('convert:html', async (_event, htmlPath: string, outputDir: string) => {
+    const sendProgress = (page: number, total: number, message: string) => {
+      mainWindow.webContents.send('convert:progress', { page, total, message });
+    };
+    return await convertHtmlToHtml5(htmlPath, outputDir, sendProgress);
   });
 
   // ─── Shell: Open in Browser ──────────────────────────────────────────────────

@@ -7,9 +7,15 @@ declare global {
       minimize: () => void;
       close: () => void;
       openPptxDialog: () => Promise<string | null>;
+      openHtmlDialog: () => Promise<string | null>;
       openOutputDirDialog: () => Promise<string | null>;
       detectLibreOffice: () => Promise<{ found: boolean; version?: string; path?: string }>;
       convertPptx: (pptxPath: string, outputDir: string) => Promise<{
+        success: boolean;
+        outputPath?: string;
+        error?: string;
+      }>;
+      convertHtml: (htmlPath: string, outputDir: string) => Promise<{
         success: boolean;
         outputPath?: string;
         error?: string;
@@ -30,7 +36,8 @@ declare global {
 
 // ─── App State ─────────────────────────────────────────────────────────────
 const state = {
-  pptxPath: null as string | null,
+  mode: 'pptx' as 'pptx' | 'html',
+  inputPath: null as string | null,
   outputDir: null as string | null,
   outputFile: null as string | null,
   isConverting: false,
@@ -58,10 +65,15 @@ document.getElementById('app')!.innerHTML = `
 <div id="app-root">
   <!-- Hero -->
   <div id="hero">
-    <div class="hero-label">Windows 桌面轉換工具</div>
-    <h1 class="hero-title">PPTX → HTML5 Slides</h1>
-    <p class="hero-subtitle">將 PowerPoint 轉換為自包含 HTML5，可直接投放至看板系統</p>
-    <div id="lo-badge" class="checking">
+    <div class="hero-label">Windows / Linux 桌面轉換工具</div>
+    <h1 class="hero-title" id="hero-title">PPTX → HTML5 Slides</h1>
+    <p class="hero-subtitle" id="hero-subtitle">將 PowerPoint 轉換為自包含 HTML5，可直接投放至看板系統</p>
+    <!-- Mode toggle -->
+    <div style="display:flex;gap:8px;justify-content:center;margin-top:12px;">
+      <button id="mode-pptx" class="btn btn-primary btn-sm" style="min-width:120px">📊 PPTX → HTML5</button>
+      <button id="mode-html" class="btn btn-outline btn-sm" style="min-width:120px">🌐 HTML → HTML5</button>
+    </div>
+    <div id="lo-badge" class="checking" style="margin-top:12px">
       <span class="lo-dot"></span>
       <span id="lo-text">偵測 LibreOffice 中...</span>
     </div>
@@ -72,10 +84,10 @@ document.getElementById('app')!.innerHTML = `
 
     <!-- 1. Drop Zone -->
     <div>
-      <div class="section-title">① 選擇 PPTX 檔案</div>
+      <div class="section-title" id="step1-title">① 選擇 PPTX 檔案</div>
       <div id="drop-zone">
         <span class="drop-icon">📁</span>
-        <div class="drop-title">拖放 PPTX 到此處</div>
+        <div class="drop-title" id="drop-title">拖放 PPTX 到此處</div>
         <div class="drop-hint">或 <span id="browse-link">點選開啟</span>檔案總管</div>
         <input type="file" id="file-input" accept=".pptx,.ppt" />
       </div>
@@ -161,6 +173,7 @@ document.getElementById('app')!.innerHTML = `
 // ─── Init ──────────────────────────────────────────────────────────────────
 async function init() {
   setupWindowControls();
+  setupModeToggle();
   setupDropZone();
   setupOutputDir();
   setupConvertButton();
@@ -173,6 +186,46 @@ async function init() {
 function setupWindowControls() {
   $('btn-minimize').addEventListener('click', () => window.electronAPI?.minimize());
   $('btn-close').addEventListener('click', () => window.electronAPI?.close());
+}
+
+// ─── Mode Toggle (PPTX ↔ HTML) ────────────────────────────────────────────
+function setupModeToggle() {
+  $('mode-pptx').addEventListener('click', () => setMode('pptx'));
+  $('mode-html').addEventListener('click', () => setMode('html'));
+}
+
+function setMode(mode: 'pptx' | 'html') {
+  state.mode = mode;
+  state.inputPath = null;
+
+  const isPptx = mode === 'pptx';
+
+  // Update button styles
+  ($('mode-pptx') as HTMLButtonElement).className = `btn btn-sm ${isPptx ? 'btn-primary' : 'btn-outline'}`;
+  ($('mode-html') as HTMLButtonElement).className = `btn btn-sm ${isPptx ? 'btn-outline' : 'btn-primary'}`;
+
+  // Update hero text
+  $('hero-title').textContent = isPptx ? 'PPTX → HTML5 Slides' : 'HTML → HTML5 Standalone';
+  $('hero-subtitle').textContent = isPptx
+    ? '將 PowerPoint 轉換為自包含 HTML5，可直接投放至看板系統'
+    : '將 HTML 頁面內嵌所有資源並套用 FHD 縮放，輸出為自包含 HTML5';
+
+  // LibreOffice badge: only relevant for PPTX
+  $('lo-badge').style.display = isPptx ? '' : 'none';
+
+  // Update step 1 wording
+  $('step1-title').textContent = isPptx ? '① 選擇 PPTX 檔案' : '① 選擇 HTML 檔案';
+  $('drop-title').textContent = isPptx ? '拖放 PPTX 到此處' : '拖放 HTML 到此處';
+
+  // Update file input accept
+  ($('file-input') as HTMLInputElement).accept = isPptx ? '.pptx,.ppt' : '.html,.htm';
+
+  // Reset file selection UI
+  $('file-info-row').style.display = 'none';
+  $('drop-zone').style.display = 'block';
+  ($('btn-convert') as HTMLButtonElement).disabled = true;
+  hideResult();
+  hideProgress();
 }
 
 // ─── LibreOffice Detection ─────────────────────────────────────────────────
@@ -202,22 +255,21 @@ function setupDropZone() {
   const dropZone = $('drop-zone');
   const fileInput = $('file-input') as HTMLInputElement;
 
-  $('browse-link').addEventListener('click', () => {
+  const openDialog = () => {
     if (window.electronAPI) {
-      window.electronAPI.openPptxDialog().then(setSelectedFile);
+      const fn = state.mode === 'pptx'
+        ? window.electronAPI.openPptxDialog
+        : window.electronAPI.openHtmlDialog;
+      fn().then(setSelectedFile);
     } else {
       fileInput.click();
     }
-  });
+  };
+
+  $('browse-link').addEventListener('click', openDialog);
 
   dropZone.addEventListener('click', (e) => {
-    if ((e.target as HTMLElement).id !== 'browse-link') {
-      if (window.electronAPI) {
-        window.electronAPI.openPptxDialog().then(setSelectedFile);
-      } else {
-        fileInput.click();
-      }
-    }
+    if ((e.target as HTMLElement).id !== 'browse-link') openDialog();
   });
 
   // Drag & Drop
@@ -236,8 +288,9 @@ function setupDropZone() {
     const files = e.dataTransfer?.files;
     if (files && files.length > 0) {
       const file = files[0];
-      if (file.name.match(/\.(pptx|ppt)$/i)) {
-        // In Electron, file.path is available
+      const pptxMatch = /\.(pptx|ppt)$/i.test(file.name);
+      const htmlMatch = /\.(html|htm)$/i.test(file.name);
+      if ((state.mode === 'pptx' && pptxMatch) || (state.mode === 'html' && htmlMatch)) {
         const filePath = (file as any).path || file.name;
         setSelectedFile(filePath, file.size);
       }
@@ -253,7 +306,7 @@ function setupDropZone() {
   });
 
   $('btn-clear-file').addEventListener('click', () => {
-    state.pptxPath = null;
+    state.inputPath = null;
     $('file-info-row').style.display = 'none';
     $('drop-zone').style.display = 'block';
     $('btn-convert').setAttribute('disabled', 'true');
@@ -264,7 +317,7 @@ function setupDropZone() {
 
 function setSelectedFile(filePath: string | null, size?: number) {
   if (!filePath) return;
-  state.pptxPath = filePath;
+  state.inputPath = filePath;
 
   const name = filePath.split(/[\\/]/).pop() || filePath;
   const sizeText = size ? ` · ${formatBytes(size)}` : '';
@@ -277,9 +330,12 @@ function setSelectedFile(filePath: string | null, size?: number) {
   $('file-info-row').classList.add('active');
 
   // Auto-set output dir if not set
-  if (!state.outputDir && filePath.includes('\\')) {
-    const dir = filePath.substring(0, filePath.lastIndexOf('\\')) + '\\output';
-    setOutputDir(dir);
+  if (!state.outputDir) {
+    const sep = filePath.includes('\\') ? '\\' : '/';
+    const lastSep = Math.max(filePath.lastIndexOf('\\'), filePath.lastIndexOf('/'));
+    if (lastSep > -1) {
+      setOutputDir(filePath.substring(0, lastSep) + sep + 'output');
+    }
   }
 
   updateConvertButton();
@@ -312,12 +368,12 @@ function setOutputDir(dir: string) {
 // ─── Convert Button ───────────────────────────────────────────────────────
 function updateConvertButton() {
   const btn = $('btn-convert') as HTMLButtonElement;
-  btn.disabled = !(state.pptxPath && state.outputDir) || state.isConverting;
+  btn.disabled = !(state.inputPath && state.outputDir) || state.isConverting;
 }
 
 function setupConvertButton() {
   $('btn-convert').addEventListener('click', async () => {
-    if (!state.pptxPath || !state.outputDir) return;
+    if (!state.inputPath || !state.outputDir) return;
     await startConvert();
   });
 }
@@ -338,7 +394,9 @@ async function startConvert() {
 
   try {
     const result = window.electronAPI
-      ? await window.electronAPI.convertPptx(state.pptxPath!, state.outputDir!)
+      ? state.mode === 'pptx'
+        ? await window.electronAPI.convertPptx(state.inputPath!, state.outputDir!)
+        : await window.electronAPI.convertHtml(state.inputPath!, state.outputDir!)
       : await mockConvert();
 
     hideProgress();
@@ -364,7 +422,6 @@ async function startConvert() {
 // Mock convert for testing without Electron
 function mockConvert(): Promise<{ success: boolean; outputPath?: string; error?: string }> {
   return new Promise((resolve) => {
-    let p = 0;
     const steps = [
       [10, '正在啟動轉換引擎...'],
       [30, '解析 PPTX 結構...'],

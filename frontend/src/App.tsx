@@ -40,8 +40,9 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 flex flex-col transition-colors duration-200">
-      <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4 shadow-sm">
-        <div className="w-full grid grid-cols-3 items-center">
+      <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm px-4 pt-4 pb-0">
+        {/* Row 1: Logo | Title | Theme toggle */}
+        <div className="w-full grid grid-cols-3 items-center pb-3">
           <div className="flex items-center justify-start">
             <img
               src={theme === 'dark' ? '/technexion_logo-white.svg' : '/technexion_logo.svg'}
@@ -50,34 +51,41 @@ function App() {
             />
           </div>
           <div className="flex items-center justify-center">
-            <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400 whitespace-nowrap">
+            <h1 className="text-2xl font-black bg-clip-text text-transparent bg-gradient-to-r from-blue-900 to-slate-900 dark:from-blue-400 dark:to-emerald-400 whitespace-nowrap">
               Welcome Board Admin
             </h1>
           </div>
-          <div className="flex items-center space-x-2 justify-end">
-            <nav className="flex space-x-1">
-              {navItems.map(item => (
-                <Link
-                  key={item.name}
-                  to={item.path}
-                  className={`px-3 py-2 rounded-md transition-colors font-medium text-sm ${
-                    (location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path)))
-                      ? 'bg-blue-600 text-white'
-                      : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white'
-                  }`}
-                >
-                  {item.name}
-                </Link>
-              ))}
-            </nav>
+          <div className="flex items-center justify-end">
             <button
               onClick={toggle}
               aria-label="Toggle dark mode"
-              className="ml-2 p-2 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white transition-colors"
+              className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white transition-colors"
             >
               {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
             </button>
           </div>
+        </div>
+
+        {/* Divider */}
+        <div className="border-t border-gray-200 dark:border-gray-700" />
+
+        {/* Row 2: Navigation */}
+        <div className="flex justify-center py-2">
+          <nav className="flex space-x-1">
+            {navItems.map(item => (
+              <Link
+                key={item.name}
+                to={item.path}
+                className={`px-3 py-2 rounded-md transition-colors font-medium text-sm ${
+                  (location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path)))
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white'
+                }`}
+              >
+                {item.name}
+              </Link>
+            ))}
+          </nav>
         </div>
       </header>
 

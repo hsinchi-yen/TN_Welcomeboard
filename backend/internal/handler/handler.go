@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"encoding/base64"
 	"encoding/json"
+	_ "embed"
 	"fmt"
 	"net/http"
 	"os"
@@ -18,6 +20,11 @@ import (
 	"welcome-board-backend/internal/model"
 	"welcome-board-backend/internal/service"
 )
+
+//go:embed assets/technexion_logo-white.svg
+var logoWhiteSVG []byte
+
+var logoWhiteDataURI = "data:image/svg+xml;base64," + base64.StdEncoding.EncodeToString(logoWhiteSVG)
 
 type Handler struct {
 	svc      *service.Service
@@ -189,6 +196,7 @@ func (h *Handler) DeletePlaylistItem(c *gin.Context) {
 var allowedExts = map[string]bool{
 	".html": true, ".htm": true,
 	".jpg": true, ".jpeg": true, ".png": true, ".gif": true,
+	".svg": true, ".webp": true, ".bmp": true, ".ico": true, ".avif": true,
 	".mp4": true, ".webm": true,
 }
 
@@ -205,13 +213,9 @@ func (h *Handler) UploadMedia(c *gin.Context) {
 		return
 	}
 
-	isVideo := ext == ".mp4" || ext == ".webm"
-	maxSize := int64(50 * 1024 * 1024)
-	if isVideo {
-		maxSize = 500 * 1024 * 1024
-	}
+	maxSize := int64(1024 * 1024 * 1024) // 1 GB for all types
 	if file.Size > maxSize {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "file too large"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "file too large (max 1 GB)"})
 		return
 	}
 
@@ -461,7 +465,7 @@ func detectMediaType(name string) (contentType string, suggestedMode string) {
 	switch ext {
 	case ".html", ".htm":
 		return "html5", "html5_slides"
-	case ".jpg", ".jpeg", ".png", ".gif":
+	case ".jpg", ".jpeg", ".png", ".gif", ".svg", ".webp", ".bmp", ".ico", ".avif":
 		return "image", "image_loop"
 	case ".mp4", ".webm":
 		return "video", "video_loop"
@@ -625,7 +629,7 @@ func buildDisplayHTML(deviceID string) string {
         '<div class="cb-w"></div><div class="cb-y"></div><div class="cb-c"></div>' +
         '<div class="cb-g"></div><div class="cb-m"></div><div class="cb-r"></div>' +
         '<div class="cb-b"></div>' +
-        '<div class="cb-logo"><img src="/media/technexion_logo-white.svg" alt="logo" style="width:100%%;height:100%%;object-fit:contain;"></div></div>';
+        '<div class="cb-logo"><img src="%s" alt="TechNexion" style="width:100%%;height:100%%;object-fit:contain;"></div></div>';
       slotA = slotB = null;
     }
 
@@ -755,7 +759,7 @@ func buildDisplayHTML(deviceID string) string {
 })();
 </script>
 </body>
-</html>`, deviceID, deviceID)
+</html>`, deviceID, deviceID, logoWhiteDataURI)
 }
 
 

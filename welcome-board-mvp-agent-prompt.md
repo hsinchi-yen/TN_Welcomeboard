@@ -10,7 +10,7 @@
 
 打造一套個人自用的 Welcome Board 數位看板投放系統，包含：
 
-1. **Windows 桌面轉換工具**（Electron + TypeScript）：將 PPTX 轉換為 HTML5 投影片
+1. **桌面轉換工具**（Electron + TypeScript，支援 Windows / Linux）：將 PPTX 或 HTML 轉換為自包含 FHD HTML5
 2. **後端服務**（Go + PostgreSQL + Docker）：管理內容、排程、投放
 3. **管理後台**（React + TypeScript）：上傳內容、設定排程、預覽
 4. **投放端**（Web Browser）：直接透過瀏覽器模擬 Kiosk 顯示（預設鎖定單一 Local Preview Screen）
@@ -19,11 +19,11 @@
 
 ## 技術棧規格
 
-### Windows 轉換工具
+### 桌面轉換工具（Windows / Linux）
 - Runtime: Electron 28+ with TypeScript
-- PPTX 解析: `pptx2html` 或呼叫本機 LibreOffice headless CLI
-- 輸出格式: 自包含 HTML5（含內嵌 CSS、base64 圖片）
-- 打包: electron-builder，目標 Windows x64 installer
+- 轉換模式：PPTX → HTML5（LibreOffice headless）、HTML → HTML5（resource inlining）
+- 輸出格式: 自包含 FHD HTML5（1920×1080 縮放、內嵌 CSS、base64 圖片）
+- 打包: electron-builder，目標 Windows x64 NSIS installer + Linux AppImage，輸出至 `output/`
 
 ### 後端
 - 語言: Go 1.22+
@@ -191,10 +191,10 @@ backend/
 
 **1.4 檔案上傳規格**
 
-- 接受: `.pptx`（已轉換的 HTML zip）、`.html`、`.jpg`、`.png`、`.gif`、`.mp4`、`.webm`
+- 接受: `.html`、`.htm`、`.jpg`、`.jpeg`、`.png`、`.gif`、`.svg`、`.webp`、`.bmp`、`.ico`、`.avif`、`.mp4`、`.webm`
 - 儲存路徑: `./media/{filename}`
 - 回傳: `{"name": "filename", "url": "/media/filename", "type": "media"}`
-- 大小限制: 500MB（影片）、50MB（其他）
+- 大小限制: **1 GB**（所有檔案類型統一）
 
 **1.5 WebSocket Hub**
 
@@ -314,6 +314,10 @@ frontend/
 
 ### 3.2 頁面功能規格
 
+**管理後台 Header（App.tsx）**
+- "Welcome Board Admin" 標題：`font-black`，Daylight 模式藍黑漸層（`from-blue-900 to-slate-900`），Dark 模式青綠漸層（`from-blue-400 to-emerald-400`）
+- 第一列：Logo（左）/ 標題（中）/ 深淺切換（右）；第二列分隔線後置中顯示導覽列（Dashboard / Playlists / Upload / Schedules）
+
 **Dashboard**
 - 僅顯示單一 Preview Device 的資訊。
 - 可直接從下拉選單選擇 Playlist 並進行推播。
@@ -321,8 +325,10 @@ frontend/
 
 **Upload 頁面**
 - 支援檔案拖放 (Drag & Drop) 與點擊上傳。
+- 接受格式：HTML5、JPG、PNG、GIF、SVG、WebP、AVIF、BMP、MP4、WebM。單檔上限 1 GB。
 - 上傳進度條（axios `onUploadProgress`）。
-- 媒體庫列表可刪除，並能即時預覽。
+- 媒體庫預覽：圖片 → `<img>`，影片 → `<video>`，HTML → `<iframe>` 縮圖預覽（沙盒模式）。
+- 媒體庫列表可刪除。
 
 **Playlists 頁面**
 - 新增清單，選擇模式（html5_slides / image_loop / video_loop）。
@@ -349,42 +355,47 @@ server: {
 
 ---
 
-## Phase 4 — Windows PPTX 轉換工具（Electron）
+## Phase 4 — 桌面轉換工具（Electron，Windows / Linux）
 
-### 4.1 轉換流程
+### 4.1 轉換模式
 
-**方案：LibreOffice headless**
+**PPTX → HTML5（LibreOffice headless）**
 
 ```typescript
-// converter.ts
-import { execFile } from 'child_process';
-import path from 'path';
-
-async function convertPptxToHtml(
-  pptxPath: string,
-  outputDir: string
-): Promise<string> {
-  // 呼叫 LibreOffice headless 轉 impress HTML
-  await execFileAsync('soffice', [
-    '--headless',
-    '--convert-to', 'html',
-    '--outdir', outputDir,
-    pptxPath
-  ]);
-}
+// converter.ts — convertPptxLibreOffice()
+await execFileAsync(sofficePath, [
+  '--headless', '--convert-to', 'html', '--outdir', outputDir, pptxPath
+], { timeout: 120000 });
+// 再執行 inlineResources() 內嵌所有本地 CSS / 圖片，注入 FHD 縮放
 ```
 
+LibreOffice 自動搜尋路徑：Windows `Program Files`、Linux `/usr/bin/soffice`、`/usr/lib/libreoffice/...`、環境變數 `LIBREOFFICE_PATH`。
+
+**HTML → HTML5（convertHtmlToHtml5）**
+- 直接對現有 HTML 執行 `inlineResources()` + FHD 縮放注入
+- 不需要 LibreOffice
+
 **自包含 HTML 後處理（inlineResources）：**
-- 讀取 HTML，找出所有 `<img src="...">` 和 `<link href="...">` 
+- 讀取 HTML，找出所有 `<img src="...">` 和 `<link href="...">`
 - 將本地資源讀取後 base64 編碼內嵌
-- 輸出單一 `.html` 檔案（約 2-10MB）
-- 此 HTML 可直接上傳到管理後台的 Upload 頁面
+- 注入 FHD (1920×1080) 縮放 CSS + JS
+- 輸出單一 `_fhd_standalone.html`（約 2–10 MB）
 
 ### 4.2 Electron UI 規格
 
-「上傳到看板系統」功能：
-- 使用者輸入後端 URL（如 `http://localhost:8080`）
-- 直接呼叫 `POST /api/v1/upload` 上傳轉換後的 HTML
+- Hero 區塊提供模式切換按鈕：**PPTX → HTML5** / **HTML → HTML5**
+- 模式切換時自動更新拖放區提示、檔案過濾器、LibreOffice badge 顯示
+- 「上傳到看板系統」：輸入後端 URL（如 `http://localhost:8080`），呼叫 `POST /api/v1/upload`
+
+### 4.3 打包
+
+```bash
+npm run dist        # Windows NSIS installer
+npm run dist:linux  # Linux AppImage
+npm run dist:all    # 同時產生兩平台
+```
+
+輸出至 `electron-converter/output/`。
 
 ---
 

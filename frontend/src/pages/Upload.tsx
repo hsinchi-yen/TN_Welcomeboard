@@ -170,12 +170,12 @@ export default function Upload() {
           className="hidden"
           ref={fileInputRef}
           onChange={(e) => void handleUpload(e.target.files)}
-          accept="image/*,video/*,.html,.zip"
+          accept="image/*,video/*,.html,.htm,.svg,.webp,.avif,.bmp,.ico"
           multiple
         />
         <div className="text-gray-600 dark:text-gray-400">
           <p className="text-lg font-semibold mb-2 text-gray-900 dark:text-gray-100">Click or drag files to upload</p>
-          <p className="text-sm">Supports standalone HTML, images, and videos. Uploaded files appear in the Playlists media library.</p>
+          <p className="text-sm">Supports HTML5, images (JPG, PNG, GIF, SVG, WebP, AVIF, BMP), and videos (MP4, WebM). Max 1 GB per file.</p>
         </div>
       </div>
 
@@ -207,8 +207,16 @@ export default function Upload() {
                 <div className="aspect-video bg-gray-100 dark:bg-gray-700 rounded-lg mb-2 overflow-hidden flex items-center justify-center relative">
                   {f.url.match(/\.(mp4|webm)$/i) ? (
                     <video src={f.url} className="max-w-full max-h-full" />
-                  ) : f.url.match(/\.html$/i) ? (
-                    <div className="text-xs text-gray-500 dark:text-gray-400">HTML5 Content</div>
+                  ) : f.url.match(/\.(html|htm)$/i) ? (
+                    <div className="relative w-full h-full overflow-hidden">
+                      <iframe
+                        src={f.url}
+                        title={f.name}
+                        sandbox="allow-scripts"
+                        className="absolute top-0 left-0 border-0 pointer-events-none"
+                        style={{ width: '400%', height: '400%', transform: 'scale(0.25)', transformOrigin: 'top left' }}
+                      />
+                    </div>
                   ) : (
                     <img src={f.url} className="max-w-full max-h-full object-contain" alt={f.name} />
                   )}
