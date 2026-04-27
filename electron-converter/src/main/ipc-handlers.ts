@@ -8,7 +8,10 @@ import {
   detectLibreOffice,
   convertPptxLibreOffice,
   convertPptxFallback,
+<<<<<<< HEAD
   convertHtmlToHtml5,
+=======
+>>>>>>> 8ca89ffa7823c1be7054d470824416fe3ba20688
 } from './converter';
 
 export function setupIpcHandlers(mainWindow: BrowserWindow): void {
@@ -22,6 +25,7 @@ export function setupIpcHandlers(mainWindow: BrowserWindow): void {
     return result.canceled ? null : result.filePaths[0];
   });
 
+<<<<<<< HEAD
   // ─── Dialog: Open HTML ───────────────────────────────────────────────────────
   ipcMain.handle('dialog:openHtml', async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
@@ -32,6 +36,8 @@ export function setupIpcHandlers(mainWindow: BrowserWindow): void {
     return result.canceled ? null : result.filePaths[0];
   });
 
+=======
+>>>>>>> 8ca89ffa7823c1be7054d470824416fe3ba20688
   // ─── Dialog: Open Output Directory ──────────────────────────────────────────
   ipcMain.handle('dialog:openOutputDir', async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
@@ -61,6 +67,7 @@ export function setupIpcHandlers(mainWindow: BrowserWindow): void {
     }
   });
 
+<<<<<<< HEAD
   // ─── Convert HTML → HTML5 ────────────────────────────────────────────────────
   ipcMain.handle('convert:html', async (_event, htmlPath: string, outputDir: string) => {
     const sendProgress = (page: number, total: number, message: string) => {
@@ -69,6 +76,8 @@ export function setupIpcHandlers(mainWindow: BrowserWindow): void {
     return await convertHtmlToHtml5(htmlPath, outputDir, sendProgress);
   });
 
+=======
+>>>>>>> 8ca89ffa7823c1be7054d470824416fe3ba20688
   // ─── Shell: Open in Browser ──────────────────────────────────────────────────
   ipcMain.handle('shell:openBrowser', async (_event, filePath: string) => {
     await shell.openExternal(`file://${filePath}`);

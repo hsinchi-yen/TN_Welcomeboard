@@ -10,9 +10,13 @@
     "build": "npm run build:main && npm run build:renderer",
     "start": "npm run build && electron .",
     "pack": "npm run build && electron-builder",
+<<<<<<< HEAD
     "dist": "npm run build && electron-builder --win",
     "dist:linux": "npm run build && electron-builder --linux",
     "dist:all": "npm run build && electron-builder --win --linux"
+=======
+    "dist": "npm run build && electron-builder --win"
+>>>>>>> 8ca89ffa7823c1be7054d470824416fe3ba20688
   },
   "keywords": [],
   "author": "TN Tool Projects",
@@ -32,25 +36,43 @@
   },
   "build": {
     "appId": "com.tn.signage-converter",
+<<<<<<< HEAD
     "productName": "Signage Converter",
     "directories": {
       "output": "output"
+=======
+    "productName": "Signage PPTX Converter",
+    "directories": {
+      "output": "dist-electron"
+>>>>>>> 8ca89ffa7823c1be7054d470824416fe3ba20688
     },
     "files": [
       "dist/**/*",
       "assets/**/*"
     ],
     "win": {
+<<<<<<< HEAD
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "zip",  "arch": ["x64"] }
+      ],
+      "icon": "assets/icon.ico",
+      "sign": null
+=======
       "target": "nsis",
       "icon": "assets/icon.ico"
+>>>>>>> 8ca89ffa7823c1be7054d470824416fe3ba20688
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
+<<<<<<< HEAD
     },
     "linux": {
       "target": "AppImage",
       "category": "Utility"
+=======
+>>>>>>> 8ca89ffa7823c1be7054d470824416fe3ba20688
     }
   }
 }

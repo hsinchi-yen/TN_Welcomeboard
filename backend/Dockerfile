@@ -5,8 +5,7 @@ WORKDIR /app
 # Copy the source code
 COPY . .
 
-# Initialize Go modules and get dependencies
-RUN go mod init welcome-board-backend && go get github.com/gin-gonic/gin@v1.9.1 && go get github.com/gin-contrib/cors@v1.4.0 && go mod tidy
+RUN go mod tidy
 
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main ./cmd/server

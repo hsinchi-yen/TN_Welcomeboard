@@ -19,6 +19,7 @@ export interface LibreOfficeInfo {
   path?: string;
 }
 
+<<<<<<< HEAD
 // CSS + JS injected into every output HTML to scale content to FHD in fullscreen.
 const FHD_STYLE = `
 <style id="__fhd_scale_style">
@@ -59,6 +60,15 @@ export async function detectLibreOffice(): Promise<LibreOfficeInfo> {
       '/usr/lib/libreoffice/program/soffice',
       '/opt/libreoffice/program/soffice',
     ] : []),
+=======
+/**
+ * Detect LibreOffice installation on Windows
+ */
+export async function detectLibreOffice(): Promise<LibreOfficeInfo> {
+  const candidates = [
+    'C:\\Program Files\\LibreOffice\\program\\soffice.exe',
+    'C:\\Program Files (x86)\\LibreOffice\\program\\soffice.exe',
+>>>>>>> 8ca89ffa7823c1be7054d470824416fe3ba20688
     process.env['LIBREOFFICE_PATH'] || '',
   ].filter(Boolean);
 
@@ -74,6 +84,10 @@ export async function detectLibreOffice(): Promise<LibreOfficeInfo> {
     }
   }
 
+<<<<<<< HEAD
+=======
+  // Try PATH
+>>>>>>> 8ca89ffa7823c1be7054d470824416fe3ba20688
   try {
     const { stdout } = await execFileAsync('soffice', ['--version'], { timeout: 5000 });
     const version = stdout.trim().replace('LibreOffice ', '');
@@ -84,12 +98,17 @@ export async function detectLibreOffice(): Promise<LibreOfficeInfo> {
 }
 
 /**
+<<<<<<< HEAD
  * Convert PPTX to self-contained FHD HTML using LibreOffice
+=======
+ * Convert PPTX to self-contained HTML using LibreOffice
+>>>>>>> 8ca89ffa7823c1be7054d470824416fe3ba20688
  */
 export async function convertPptxLibreOffice(
   pptxPath: string,
   outputDir: string,
   sofficePath: string,
+<<<<<<< HEAD
   onProgress: (page: number, total: number, message: string) => void,
 ): Promise<ConvertResult> {
   try {
@@ -123,15 +142,66 @@ export async function convertPptxLibreOffice(
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     return { success: false, error: message };
+=======
+  onProgress: (page: number, total: number, message: string) => void
+): Promise<ConvertResult> {
+  try {
+    onProgress(0, 100, '正在啟動 LibreOffice...');
+
+    // Ensure output dir exists
+    fs.mkdirSync(outputDir, { recursive: true });
+
+    // Run LibreOffice headless conversion
+    onProgress(10, 100, '正在轉換 PPTX → HTML...');
+    await execFileAsync(
+      sofficePath,
+      ['--headless', '--convert-to', 'html', '--outdir', outputDir, pptxPath],
+      { timeout: 120000 }
+    );
+
+    // Find the generated HTML file
+    const baseName = path.basename(pptxPath, path.extname(pptxPath));
+    const htmlPath = path.join(outputDir, `${baseName}.html`);
+
+    if (!fs.existsSync(htmlPath)) {
+      // Try finding any HTML file
+      const files = fs.readdirSync(outputDir).filter(f => f.endsWith('.html'));
+      if (files.length === 0) {
+        return { success: false, error: 'LibreOffice 轉換完成但找不到輸出 HTML 檔案' };
+      }
+    }
+
+    onProgress(60, 100, '正在內嵌資源（圖片、樣式）...');
+
+    // Inline all resources to make self-contained HTML
+    const finalHtmlPath = await inlineResources(htmlPath, outputDir, onProgress);
+
+    onProgress(100, 100, '轉換完成！');
+
+    return {
+      success: true,
+      outputPath: finalHtmlPath,
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err.message || '未知錯誤',
+    };
+>>>>>>> 8ca89ffa7823c1be7054d470824416fe3ba20688
   }
 }
 
 /**
+<<<<<<< HEAD
  * Inline all external resources and inject FHD viewport scaling.
+=======
+ * Inline all external resources into a single self-contained HTML file
+>>>>>>> 8ca89ffa7823c1be7054d470824416fe3ba20688
  */
 async function inlineResources(
   htmlPath: string,
   baseDir: string,
+<<<<<<< HEAD
   onProgress: (page: number, total: number, message: string) => void,
 ): Promise<string> {
   const html = fs.readFileSync(htmlPath, 'utf-8');
@@ -151,6 +221,17 @@ async function inlineResources(
   $('link[rel="stylesheet"]').each((_i, el) => {
     const href = $(el).attr('href');
     if (href && !href.startsWith('http') && !href.startsWith('//')) {
+=======
+  onProgress: (page: number, total: number, message: string) => void
+): Promise<string> {
+  let html = fs.readFileSync(htmlPath, 'utf-8');
+  const $ = cheerio.load(html);
+
+  // Inline CSS <link> tags
+  $('link[rel="stylesheet"]').each((_i, el) => {
+    const href = $(el).attr('href');
+    if (href && !href.startsWith('http')) {
+>>>>>>> 8ca89ffa7823c1be7054d470824416fe3ba20688
       const cssPath = path.resolve(baseDir, href);
       if (fs.existsSync(cssPath)) {
         const css = fs.readFileSync(cssPath, 'utf-8');
@@ -159,17 +240,33 @@ async function inlineResources(
     }
   });
 
+<<<<<<< HEAD
   // Inline <img> tags as base64
   $('img').each((_i, el) => {
     const src = $(el).attr('src');
     if (src && !src.startsWith('data:') && !src.startsWith('http') && !src.startsWith('//')) {
+=======
+  // Inline images as base64
+  $('img').each((_i, el) => {
+    const src = $(el).attr('src');
+    if (src && !src.startsWith('data:') && !src.startsWith('http')) {
+>>>>>>> 8ca89ffa7823c1be7054d470824416fe3ba20688
       const imgPath = path.resolve(baseDir, src);
       if (fs.existsSync(imgPath)) {
         const ext = path.extname(imgPath).toLowerCase().replace('.', '');
         const mimeMap: Record<string, string> = {
+<<<<<<< HEAD
           jpg: 'image/jpeg', jpeg: 'image/jpeg',
           png: 'image/png', gif: 'image/gif',
           svg: 'image/svg+xml', webp: 'image/webp',
+=======
+          jpg: 'image/jpeg',
+          jpeg: 'image/jpeg',
+          png: 'image/png',
+          gif: 'image/gif',
+          svg: 'image/svg+xml',
+          webp: 'image/webp',
+>>>>>>> 8ca89ffa7823c1be7054d470824416fe3ba20688
         };
         const mime = mimeMap[ext] || 'image/png';
         const data = fs.readFileSync(imgPath).toString('base64');
@@ -178,11 +275,19 @@ async function inlineResources(
     }
   });
 
+<<<<<<< HEAD
   // Inline background-image url() in style attributes
   $('[style]').each((_i, el) => {
     const style = $(el).attr('style') || '';
     const updated = style.replace(/url\(['"]?([^'")\s]+)['"]?\)/g, (_match, url: string) => {
       if (url.startsWith('data:') || url.startsWith('http') || url.startsWith('//')) return _match;
+=======
+  // Inline background images in style attributes
+  $('[style]').each((_i, el) => {
+    const style = $(el).attr('style') || '';
+    const updatedStyle = style.replace(/url\(['"]?([^'")\s]+)['"]?\)/g, (_match, url) => {
+      if (url.startsWith('data:') || url.startsWith('http')) return _match;
+>>>>>>> 8ca89ffa7823c1be7054d470824416fe3ba20688
       const imgPath = path.resolve(baseDir, url);
       if (fs.existsSync(imgPath)) {
         const ext = path.extname(imgPath).toLowerCase().replace('.', '');
@@ -192,6 +297,7 @@ async function inlineResources(
       }
       return _match;
     });
+<<<<<<< HEAD
     $(el).attr('style', updated);
   });
 
@@ -201,12 +307,22 @@ async function inlineResources(
   $('body').append(FHD_SCRIPT);
 
   const outputPath = htmlPath.replace('.html', '_fhd_standalone.html');
+=======
+    $(el).attr('style', updatedStyle);
+  });
+
+  onProgress(90, 100, '正在寫入輸出檔案...');
+
+  // Write self-contained HTML
+  const outputPath = htmlPath.replace('.html', '_standalone.html');
+>>>>>>> 8ca89ffa7823c1be7054d470824416fe3ba20688
   fs.writeFileSync(outputPath, $.html(), 'utf-8');
 
   return outputPath;
 }
 
 /**
+<<<<<<< HEAD
  * Process an existing HTML file into a self-contained FHD HTML5 file.
  * Inlines all local CSS and images, then injects FHD viewport scaling.
  */
@@ -240,20 +356,32 @@ export async function convertHtmlToHtml5(
 
 /**
  * Fallback when LibreOffice is not available — generates a placeholder HTML at FHD.
+=======
+ * Fallback: Simple PPTX info extraction without LibreOffice
+ * Creates a placeholder HTML with metadata
+>>>>>>> 8ca89ffa7823c1be7054d470824416fe3ba20688
  */
 export async function convertPptxFallback(
   pptxPath: string,
   outputDir: string,
+<<<<<<< HEAD
   onProgress: (page: number, total: number, message: string) => void,
 ): Promise<ConvertResult> {
   try {
     onProgress(10, 100, 'Using fallback mode (LibreOffice not found)…');
+=======
+  onProgress: (page: number, total: number, message: string) => void
+): Promise<ConvertResult> {
+  try {
+    onProgress(10, 100, '使用備用方案（無 LibreOffice）...');
+>>>>>>> 8ca89ffa7823c1be7054d470824416fe3ba20688
     fs.mkdirSync(outputDir, { recursive: true });
 
     const baseName = path.basename(pptxPath, '.pptx');
     const stats = fs.statSync(pptxPath);
     const sizeKB = Math.round(stats.size / 1024);
 
+<<<<<<< HEAD
     onProgress(50, 100, 'Generating placeholder HTML…');
 
     const html = `<!DOCTYPE html>
@@ -264,6 +392,18 @@ export async function convertPptxFallback(
 <title>${baseName}</title>
 ${FHD_STYLE}
 <style>
+=======
+    onProgress(50, 100, '生成預覽 HTML...');
+
+    const html = `<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${baseName}</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+>>>>>>> 8ca89ffa7823c1be7054d470824416fe3ba20688
   body {
     background: #0f0f1a;
     color: #fff;
@@ -271,6 +411,10 @@ ${FHD_STYLE}
     display: flex;
     align-items: center;
     justify-content: center;
+<<<<<<< HEAD
+=======
+    min-height: 100vh;
+>>>>>>> 8ca89ffa7823c1be7054d470824416fe3ba20688
     flex-direction: column;
     gap: 24px;
   }
@@ -280,6 +424,7 @@ ${FHD_STYLE}
     border-radius: 16px;
     padding: 48px;
     text-align: center;
+<<<<<<< HEAD
     max-width: 640px;
   }
   .icon { font-size: 64px; margin-bottom: 24px; }
@@ -288,6 +433,16 @@ ${FHD_STYLE}
   .meta {
     display: flex; gap: 16px; justify-content: center; margin-top: 24px;
     font-size: 14px; color: rgba(255,255,255,0.4);
+=======
+    max-width: 480px;
+  }
+  .icon { font-size: 64px; margin-bottom: 24px; }
+  h1 { font-size: 24px; font-weight: 700; margin-bottom: 8px; }
+  p { color: rgba(255,255,255,0.6); font-size: 14px; }
+  .meta { 
+    display: flex; gap: 16px; justify-content: center; margin-top: 24px;
+    font-size: 12px; color: rgba(255,255,255,0.4);
+>>>>>>> 8ca89ffa7823c1be7054d470824416fe3ba20688
   }
   .tag {
     background: rgba(99,102,241,0.2);
@@ -302,6 +457,7 @@ ${FHD_STYLE}
   <div class="card">
     <div class="icon">📊</div>
     <h1>${baseName}</h1>
+<<<<<<< HEAD
     <p>Fallback mode — install LibreOffice for full PPTX conversion.</p>
     <div class="meta">
       <span class="tag">Fallback</span>
@@ -321,5 +477,24 @@ ${FHD_SCRIPT}
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     return { success: false, error: message };
+=======
+    <p>此 HTML 由 PPTX 轉換工具生成（備用模式）<br>建議安裝 LibreOffice 以獲得最佳轉換品質</p>
+    <div class="meta">
+      <span class="tag">PPTX 備用轉換</span>
+      <span>${sizeKB} KB</span>
+      <span>${new Date().toLocaleDateString('zh-TW')}</span>
+    </div>
+  </div>
+</body>
+</html>`;
+
+    const outputPath = path.join(outputDir, `${baseName}_preview.html`);
+    fs.writeFileSync(outputPath, html, 'utf-8');
+
+    onProgress(100, 100, '轉換完成（備用模式）');
+    return { success: true, outputPath };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+>>>>>>> 8ca89ffa7823c1be7054d470824416fe3ba20688
   }
 }
