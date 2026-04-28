@@ -52,11 +52,21 @@ export interface MediaLibraryItem {
   suggested_mode: PlaylistMode;
 }
 
+export interface DisplayPort {
+  port_number: number;
+  device_id: string;
+  label: string;
+  created_at: string;
+  device_name?: string;
+  is_online: boolean;
+}
+
 interface StoreState {
   devices: Device[];
   playlists: Playlist[];
   schedules: Schedule[];
   mediaLibrary: MediaLibraryItem[];
+  displayPorts: DisplayPort[];
   fetchDevices: () => Promise<void>;
   createDevice: (payload: { name: string; description?: string }) => Promise<Device>;
   fetchPlaylists: () => Promise<void>;
@@ -74,6 +84,10 @@ interface StoreState {
   deleteSchedule: (scheduleId: string) => Promise<void>;
   fetchMediaLibrary: () => Promise<void>;
   pushToDevice: (deviceId: string, playlistId: string) => Promise<void>;
+  fetchDisplayPorts: () => Promise<void>;
+  createDisplayPort: (payload: { port_number: number; device_id: string; label: string }) => Promise<DisplayPort>;
+  updateDisplayPortLabel: (portNumber: number, label: string) => Promise<void>;
+  deleteDisplayPort: (portNumber: number) => Promise<void>;
 }
 
 export const useStore = create<StoreState>((set) => ({
@@ -81,6 +95,7 @@ export const useStore = create<StoreState>((set) => ({
   playlists: [],
   schedules: [],
   mediaLibrary: [],
+  displayPorts: [],
   fetchDevices: async () => {
     const res = await apiClient.get('/devices');
     set({ devices: res.data || [] });
@@ -127,5 +142,26 @@ export const useStore = create<StoreState>((set) => ({
   },
   pushToDevice: async (deviceId, playlistId) => {
     await apiClient.post(`/devices/${deviceId}/push`, { playlist_id: playlistId });
-  }
+  },
+  fetchDisplayPorts: async () => {
+    const res = await apiClient.get('/ports');
+    set({ displayPorts: res.data || [] });
+  },
+  createDisplayPort: async (payload) => {
+    const res = await apiClient.post('/ports', payload);
+    set((state) => ({ displayPorts: [...(state.displayPorts || []), res.data].sort((a, b) => a.port_number - b.port_number) }));
+    return res.data;
+  },
+  updateDisplayPortLabel: async (portNumber, label) => {
+    await apiClient.patch(`/ports/${portNumber}`, { label });
+    set((state) => ({
+      displayPorts: (state.displayPorts || []).map((p) =>
+        p.port_number === portNumber ? { ...p, label } : p
+      ),
+    }));
+  },
+  deleteDisplayPort: async (portNumber) => {
+    await apiClient.delete(`/ports/${portNumber}`);
+    set((state) => ({ displayPorts: (state.displayPorts || []).filter((p) => p.port_number !== portNumber) }));
+  },
 }));

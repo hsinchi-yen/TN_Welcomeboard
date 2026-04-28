@@ -47,3 +47,13 @@ type Schedule struct {
 	IsActive   bool          `json:"is_active" db:"is_active"`
 	CreatedAt  time.Time     `json:"created_at" db:"created_at"`
 }
+
+type DisplayPort struct {
+	PortNumber int       `json:"port_number" db:"port_number"`
+	DeviceID   string    `json:"device_id"   db:"device_id"`
+	Label      string    `json:"label"       db:"label"`
+	CreatedAt  time.Time `json:"created_at"  db:"created_at"`
+	// computed fields — not stored in DB
+	DeviceName string `json:"device_name,omitempty" db:"device_name"`
+	IsOnline   bool   `json:"is_online"`
+}

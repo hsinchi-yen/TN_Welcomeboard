@@ -46,6 +46,10 @@ func (s *Service) EnsurePreviewDevice(ctx context.Context) error {
 	return s.repo.EnsureDevice(ctx, device)
 }
 
+func (s *Service) EnsureDefaultPort(ctx context.Context) error {
+	return s.repo.EnsureDefaultPort(ctx, PreviewDeviceID)
+}
+
 func (s *Service) StartScheduler() {
 	sch, err := gocron.NewScheduler()
 	if err != nil {

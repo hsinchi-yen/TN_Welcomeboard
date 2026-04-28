@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 
 	"welcome-board-backend/internal/model"
 )
@@ -110,5 +111,72 @@ func (r *Repository) CreateSchedule(ctx context.Context, s *model.Schedule) erro
 
 func (r *Repository) DeleteSchedule(ctx context.Context, id string) error {
 	_, err := r.db.ExecContext(ctx, "DELETE FROM schedules WHERE id = $1", id)
+	return err
+}
+
+// DisplayPorts
+
+func (r *Repository) EnsureDefaultPort(ctx context.Context, defaultDeviceID string) error {
+	query := `
+		INSERT INTO display_ports (port_number, device_id, label)
+		VALUES ($1, $2, $3)
+		ON CONFLICT (port_number) DO NOTHING
+	`
+	_, err := r.db.ExecContext(ctx, query, 8080, defaultDeviceID, "Display8080")
+	return err
+}
+
+func (r *Repository) UpdateDisplayPortLabel(ctx context.Context, portNumber int, label string) error {
+	res, err := r.db.ExecContext(ctx,
+		"UPDATE display_ports SET label = $1 WHERE port_number = $2",
+		label, portNumber)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return fmt.Errorf("port %d not found", portNumber)
+	}
+	return nil
+}
+
+func (r *Repository) GetDisplayPorts(ctx context.Context) ([]model.DisplayPort, error) {
+	ports := []model.DisplayPort{}
+	query := `
+		SELECT dp.port_number, dp.device_id, dp.label, dp.created_at, d.name AS device_name
+		FROM display_ports dp
+		JOIN devices d ON d.id = dp.device_id
+		ORDER BY dp.port_number ASC
+	`
+	err := r.db.SelectContext(ctx, &ports, query)
+	return ports, err
+}
+
+func (r *Repository) GetDisplayPort(ctx context.Context, portNumber int) (*model.DisplayPort, error) {
+	var port model.DisplayPort
+	query := `
+		SELECT dp.port_number, dp.device_id, dp.label, dp.created_at, d.name AS device_name
+		FROM display_ports dp
+		JOIN devices d ON d.id = dp.device_id
+		WHERE dp.port_number = $1
+	`
+	err := r.db.GetContext(ctx, &port, query, portNumber)
+	if err != nil {
+		return nil, err
+	}
+	return &port, nil
+}
+
+func (r *Repository) CreateDisplayPort(ctx context.Context, dp *model.DisplayPort) error {
+	query := `
+		INSERT INTO display_ports (port_number, device_id, label)
+		VALUES ($1, $2, $3)
+		RETURNING created_at
+	`
+	return r.db.QueryRowContext(ctx, query, dp.PortNumber, dp.DeviceID, dp.Label).Scan(&dp.CreatedAt)
+}
+
+func (r *Repository) DeleteDisplayPort(ctx context.Context, portNumber int) error {
+	_, err := r.db.ExecContext(ctx, "DELETE FROM display_ports WHERE port_number = $1", portNumber)
 	return err
 }

@@ -18,13 +18,29 @@ export default function Schedules() {
     devices,
     playlists,
     schedules,
+    displayPorts,
     fetchDevices,
     fetchPlaylists,
     fetchSchedules,
+    fetchDisplayPorts,
     createSchedule,
     deleteSchedule,
     pushToDevice,
   } = useStore();
+
+  const portByDevice = Object.fromEntries(
+    (displayPorts || []).map((p) => [p.device_id, p.port_number])
+  );
+
+  const deviceLabel = (deviceId: string) => {
+    const port = portByDevice[deviceId];
+    if (port) {
+      const num = (port - 8080).toString().padStart(3, '0');
+      return `Device:${num} – localhost:${port}`;
+    }
+    const dev = devices.find((d) => d.id === deviceId);
+    return dev?.name ?? deviceId;
+  };
 
   const [deviceId, setDeviceId] = useState('');
   const [playlistId, setPlaylistId] = useState('');
@@ -37,6 +53,7 @@ export default function Schedules() {
     void fetchDevices();
     void fetchPlaylists();
     void fetchSchedules();
+    void fetchDisplayPorts();
   }, []);
 
   useEffect(() => {
@@ -127,7 +144,7 @@ export default function Schedules() {
             <label className="text-xs font-medium text-gray-700 dark:text-gray-300">Device</label>
             <select value={deviceId} onChange={(e) => setDeviceId(e.target.value)} className={inputCls}>
               {devices.map((device) => (
-                <option key={device.id} value={device.id}>{device.name}</option>
+                <option key={device.id} value={device.id}>{deviceLabel(device.id)}</option>
               ))}
             </select>
           </div>
@@ -213,7 +230,6 @@ export default function Schedules() {
             </div>
           )}
           {schedules.map((schedule) => {
-            const device = devices.find((d) => d.id === schedule.device_id);
             const playlist = playlists.find((p) => p.id === schedule.playlist_id);
             const start = schedule.start_time.substring(0, 5);
             const end = schedule.end_time.substring(0, 5);
@@ -227,8 +243,8 @@ export default function Schedules() {
                     <div className="font-semibold text-gray-900 dark:text-gray-100">
                       {playlist?.name ?? schedule.playlist_id}
                     </div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                      {device?.name ?? schedule.device_id}
+                    <div className="text-xs font-mono text-gray-500 dark:text-gray-400">
+                      {deviceLabel(schedule.device_id)}
                     </div>
                     <div className="flex flex-wrap gap-3 pt-1 text-xs">
                       <span className="font-mono bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded">

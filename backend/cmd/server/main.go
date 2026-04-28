@@ -45,6 +45,9 @@ func main() {
 	if err := svc.EnsurePreviewDevice(ctx); err != nil {
 		log.Printf("Warning: failed to ensure preview device: %v", err)
 	}
+	if err := svc.EnsureDefaultPort(ctx); err != nil {
+		log.Printf("Warning: failed to ensure default port: %v", err)
+	}
 	cancel()
 
 	svc.StartScheduler()
@@ -58,7 +61,26 @@ func main() {
 		log.Fatalf("Failed to create media directory: %v", err)
 	}
 
+	// Load active display ports from DB and start sub-listeners.
+	pm := service.NewPortManager(h, mediaDir, handler.BuildDisplayHTML)
+	portCtx, portCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	activePorts, err := repo.GetDisplayPorts(portCtx)
+	portCancel()
+	if err != nil {
+		log.Printf("Warning: failed to load display ports: %v", err)
+	}
+	for _, p := range activePorts {
+		if p.PortNumber == 8080 {
+			continue
+		}
+		if startErr := pm.Start(p.PortNumber, p.DeviceID); startErr != nil {
+			log.Printf("Warning: failed to start listener on :%d: %v", p.PortNumber, startErr)
+		}
+	}
+	defer pm.StopAll()
+
 	hand := handler.NewHandler(svc, h, mediaDir)
+	hand.SetPortManager(pm)
 
 	r := gin.Default()
 	r.MaxMultipartMemory = 32 << 20 // 32 MB in memory; remainder streamed to temp files
@@ -94,6 +116,11 @@ func main() {
 		v1.GET("/schedules", hand.GetSchedules)
 		v1.POST("/schedules", hand.CreateSchedule)
 		v1.DELETE("/schedules/:id", hand.DeleteSchedule)
+
+		v1.GET("/ports", hand.GetDisplayPorts)
+		v1.POST("/ports", hand.CreateDisplayPort)
+		v1.PATCH("/ports/:port", hand.UpdateDisplayPort)
+		v1.DELETE("/ports/:port", hand.DeleteDisplayPort)
 	}
 
 	r.GET("/ws", hand.ServeWs)

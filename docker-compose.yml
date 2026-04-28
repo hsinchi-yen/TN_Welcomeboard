@@ -31,7 +31,7 @@ services:
     volumes:
       - ./media:/app/media
     ports:
-      - "8080:8080"
+      - "8080-8095:8080-8095"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api/v1/health || exit 1"]
       interval: 30s

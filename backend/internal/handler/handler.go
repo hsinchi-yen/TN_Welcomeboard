@@ -30,10 +30,15 @@ type Handler struct {
 	svc      *service.Service
 	hub      *hub.Hub
 	mediaDir string
+	pm       *service.PortManager
 }
 
 func NewHandler(svc *service.Service, h *hub.Hub, mediaDir string) *Handler {
 	return &Handler{svc: svc, hub: h, mediaDir: mediaDir}
+}
+
+func (h *Handler) SetPortManager(pm *service.PortManager) {
+	h.pm = pm
 }
 
 // ? ? ?  Health ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? 
@@ -61,16 +66,6 @@ func (h *Handler) GetDevices(c *gin.Context) {
 }
 
 func (h *Handler) CreateDevice(c *gin.Context) {
-	devices, err := h.svc.Repo().GetDevices(c.Request.Context())
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	if len(devices) >= 1 {
-		c.JSON(http.StatusConflict, gin.H{"error": "only one device is allowed in MVP mode"})
-		return
-	}
-
 	var d model.Device
 	if err := c.ShouldBindJSON(&d); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -424,7 +419,7 @@ func (h *Handler) GetSystemStorage(c *gin.Context) {
 // ? ? ?  Display Pages ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? 
 
 func (h *Handler) ServeRootDisplay(c *gin.Context) {
-	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(buildDisplayHTML(service.PreviewDeviceID)))
+	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(BuildDisplayHTML(service.PreviewDeviceID)))
 }
 
 func (h *Handler) ServeDisplay(c *gin.Context) {
@@ -432,10 +427,111 @@ func (h *Handler) ServeDisplay(c *gin.Context) {
 	if deviceID == "" {
 		deviceID = service.PreviewDeviceID
 	}
-	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(buildDisplayHTML(deviceID)))
+	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(BuildDisplayHTML(deviceID)))
 }
 
-// ? ? ?  Helpers ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? 
+// ? ? ?  Display Ports ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ?
+
+func (h *Handler) GetDisplayPorts(c *gin.Context) {
+	ports, err := h.svc.Repo().GetDisplayPorts(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	for i := range ports {
+		ports[i].IsOnline = h.hub.IsDeviceConnected(ports[i].DeviceID)
+	}
+	c.JSON(http.StatusOK, ports)
+}
+
+func (h *Handler) CreateDisplayPort(c *gin.Context) {
+	var dp model.DisplayPort
+	if err := c.ShouldBindJSON(&dp); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if dp.PortNumber == 8080 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "port 8080 is the default and cannot be re-created"})
+		return
+	}
+	if dp.PortNumber < 8081 || dp.PortNumber > 8095 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "port must be between 8081 and 8095"})
+		return
+	}
+	if err := h.svc.Repo().CreateDisplayPort(c.Request.Context(), &dp); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if h.pm != nil {
+		if err := h.pm.Start(dp.PortNumber, dp.DeviceID); err != nil {
+			if delErr := h.svc.Repo().DeleteDisplayPort(c.Request.Context(), dp.PortNumber); delErr != nil {
+				// Compensating delete failed — log so the orphaned row is visible in logs.
+				fmt.Printf("WARN: CreateDisplayPort rollback failed for port %d: %v\n", dp.PortNumber, delErr)
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to start listener: " + err.Error()})
+			return
+		}
+	}
+	dp.IsOnline = false
+	c.JSON(http.StatusCreated, dp)
+}
+
+func (h *Handler) DeleteDisplayPort(c *gin.Context) {
+	var portNumber int
+	if _, err := fmt.Sscanf(c.Param("port"), "%d", &portNumber); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid port number"})
+		return
+	}
+	if portNumber == 8080 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "default port cannot be removed"})
+		return
+	}
+	// Stop the listener before removing the DB record so that on any restart
+	// the port is not re-registered from a partially-deleted state.
+	if h.pm != nil {
+		h.pm.Stop(portNumber)
+	}
+	if err := h.svc.Repo().DeleteDisplayPort(c.Request.Context(), portNumber); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "deleted"})
+}
+
+func (h *Handler) UpdateDisplayPort(c *gin.Context) {
+	var portNumber int
+	if _, err := fmt.Sscanf(c.Param("port"), "%d", &portNumber); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid port number"})
+		return
+	}
+	if portNumber < 8080 || portNumber > 8095 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "port must be between 8080 and 8095"})
+		return
+	}
+	var body struct {
+		Label string `json:"label"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	label := strings.TrimSpace(body.Label)
+	if label == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "label cannot be empty"})
+		return
+	}
+	if len(label) > 100 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "label must be 100 characters or fewer"})
+		return
+	}
+	if err := h.svc.Repo().UpdateDisplayPortLabel(c.Request.Context(), portNumber, label); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "updated"})
+}
+
+// ? ? ?  Helpers ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ?
 
 func safeFilename(original string) string {
 	ext := filepath.Ext(original)
@@ -476,7 +572,7 @@ func detectMediaType(name string) (contentType string, suggestedMode string) {
 
 // ? ? ?  Display HTML ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? 
 
-func buildDisplayHTML(deviceID string) string {
+func BuildDisplayHTML(deviceID string) string {
 	return fmt.Sprintf(`<!DOCTYPE html>
 <html lang="en">
 <head>

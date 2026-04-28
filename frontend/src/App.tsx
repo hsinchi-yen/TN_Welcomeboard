@@ -3,6 +3,7 @@ import Dashboard from './pages/Dashboard';
 import Playlists from './pages/Playlists';
 import Upload from './pages/Upload';
 import Schedules from './pages/Schedules';
+import Displays from './pages/Displays';
 import { useTheme } from './hooks/useTheme';
 
 function SunIcon() {
@@ -33,6 +34,7 @@ function App() {
 
   const navItems = [
     { name: 'Dashboard', path: '/' },
+    { name: 'Displays', path: '/displays' },
     { name: 'Playlists', path: '/playlists' },
     { name: 'Upload', path: '/upload' },
     { name: 'Schedules', path: '/schedules' },
@@ -93,6 +95,7 @@ function App() {
         <div className="w-full">
           <Routes>
             <Route path="/" element={<Dashboard />} />
+            <Route path="/displays" element={<Displays />} />
             <Route path="/playlists" element={<Playlists />} />
             <Route path="/upload" element={<Upload />} />
             <Route path="/schedules" element={<Schedules />} />
